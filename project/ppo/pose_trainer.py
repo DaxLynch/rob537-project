@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from typing import Tuple, List
 import sys
+import time
 
 import matplotlib.pyplot as plt
 
@@ -62,6 +63,8 @@ class Trainer:
         self.previous_print_length: int = 0
         self.current_action = "Initializing"
         self.last_save: int = 0
+        self.start_time = time.time()
+        self.timesteps_at_start = 0  # Track timesteps at start/resume for accurate speed calc
 
     def print_status(self):
         latest_reward = 0.0
@@ -72,6 +75,11 @@ class Trainer:
         latest_critic_loss = 0.0
         avg_critic_loss = 0.0
         recent_change = 0.0
+        
+        # Calculate timesteps per second (only count NEW timesteps since start/resume)
+        elapsed_time = time.time() - self.start_time
+        timesteps_since_start = self.current_timestep - self.timesteps_at_start
+        timesteps_per_second = timesteps_since_start / elapsed_time if elapsed_time > 0 else 0
 
         if len(self.total_rewards) > 0:
             latest_reward = self.total_rewards[-1]
@@ -107,6 +115,7 @@ class Trainer:
             =========================================
             Timesteps: {self.current_timestep:,} / {self.timesteps:,} ({round((self.current_timestep/self.timesteps)*100, 4)}%)
             Episodes: {len(self.total_rewards):,}
+            Timesteps/sec: {round(timesteps_per_second, 2)}
             Currently: {self.current_action}
             Latest Reward: {round(latest_reward)}
             Latest Avg Rewards: {round(average_reward)}
@@ -206,6 +215,10 @@ class Trainer:
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.α)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.α)
+        
+        # Reset start time when resuming training
+        self.start_time = time.time()
+        self.timesteps_at_start = self.current_timestep  # Track where we resumed from
 
     def run_episode(self) -> EpisodeMemory:
         """
